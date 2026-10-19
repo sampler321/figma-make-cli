@@ -227,6 +227,23 @@ function onExt(c, m) {
 const server = http.createServer((req, res) => {
   const reply = (status, obj) => { res.writeHead(status, { 'content-type': 'application/json' }); res.end(JSON.stringify(obj)) }
   if (req.method === 'GET' && req.url === '/') return reply(200, { ok: true, ext: !!ext, running: [...runs.keys()] })
+  if (req.method === 'GET' && req.url === '/selftest') {
+    // Run claude exactly as chat runs do (same env/PATH), to catch login/keychain problems of the service.
+    const child = spawn('claude', ['-p', 'Reply with exactly: ok', '--output-format', 'json'], { cwd: os.homedir(), env: process.env, stdio: ['ignore', 'pipe', 'pipe'] })
+    let out = '', err = ''
+    const timer = setTimeout(() => child.kill('SIGKILL'), 90000)
+    child.stdout.on('data', d => { out += d })
+    child.stderr.on('data', d => { err += d })
+    child.on('error', e => { clearTimeout(timer); reply(200, { ok: false, error: 'cannot start claude: ' + e.message }) })
+    child.on('close', code => {
+      clearTimeout(timer)
+      let r = null; try { r = JSON.parse(out) } catch {}
+      const ok = code === 0 && r && !r.is_error
+      reply(200, ok ? { ok: true, model: r.modelUsage ? Object.keys(r.modelUsage)[0] : undefined, reply: String(r.result).trim() }
+        : { ok: false, error: (r && r.result) || err.trim().slice(-400) || out.trim().slice(-400) || `claude exited ${code}` })
+    })
+    return
+  }
   if (req.method !== 'POST' || req.url !== '/rpc') return reply(404, { ok: false, error: 'not found' })
   let body = ''
   req.on('data', d => { body += d })

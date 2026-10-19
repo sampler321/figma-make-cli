@@ -1,5 +1,8 @@
 # Troubleshooting
 
+Start with `figma-make doctor`. It checks tools, install, config, bridge, extension, Claude (run
+the way the bridge runs it) and the Make tab, and prints a fix next to each failure.
+
 **The panel shows a grey dot / "Bridge offline".**
 The bridge isn't running or the extension can't reach it. Run `curl -s 127.0.0.1:47123/`. If nothing
 answers, start `figma-make bridge` (or check `~/Library/Logs/figma-make-bridge.log` for the service).

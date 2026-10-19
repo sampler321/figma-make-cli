@@ -22,6 +22,7 @@ const HELP = `figma-make <command>
   kit-add <file> <pkg>@<ver>     add a Make kit (or any npm dep) to package.json, save, reload
   bridge                         run the local daemon for the Chrome extension (browser-only mode, foreground)
   link <file-key> <dir>          map a Make file to its local folder for the bridge (~/.config/figma-make/bridge.json)
+  doctor [--skip-claude]         check the whole browser-mode setup and say what to fix
 
 <file> = any substring of the Make tab title or URL; the file key is safest.
 FIGMA_MAKE_VIA=ext → talk to Make in Chrome through the bridge + extension instead of Figma desktop.`
@@ -66,6 +67,79 @@ async function pending(dir) {
 }
 
 const [cmd, ...args] = process.argv.slice(2)
+
+// Checks every piece of browser mode in order and prints the fix for each failure (exit 1 if any).
+async function doctor({ skipClaude = false } = {}) {
+  const home = process.env.HOME
+  const BRIDGE = `http://127.0.0.1:${process.env.FIGMA_MAKE_BRIDGE_PORT || 47123}`
+  let fails = 0
+  const ok = m => console.log(`  ✓ ${m}`)
+  const bad = (m, fix) => { fails++; console.log(`  ✗ ${m}${fix ? `\n      → ${fix}` : ''}`) }
+  const warn = (m, fix) => console.log(`  ! ${m}${fix ? `\n      → ${fix}` : ''}`)
+  const which = c => { try { return execFileSync('sh', ['-c', `command -v ${c}`], { encoding: 'utf8' }).trim() } catch { return '' } }
+  const get = async u => { try { const r = await fetch(BRIDGE + u, { signal: AbortSignal.timeout(100000) }); return await r.json() } catch { return null } }
+  const rpc = async (method, params = {}) => { try { const r = await fetch(BRIDGE + '/rpc', { method: 'POST', body: JSON.stringify({ method, params }), signal: AbortSignal.timeout(60000) }); return await r.json() } catch (e) { return { ok: false, error: e.message } } }
+
+  console.log('Tools')
+  const major = +process.versions.node.split('.')[0]
+  major >= 22 ? ok(`node ${process.versions.node}`) : bad(`node ${process.versions.node} (need 22+)`, 'install Node.js 22 or newer')
+  which('git') ? ok('git') : bad('git not found', 'install git')
+  which('claude') ? ok(`claude (${which('claude')})`) : bad('claude not found', 'install Claude Code and log in: https://claude.com/claude-code')
+  which('pnpm') ? ok('pnpm') : warn('pnpm not found (needed to type-check Make projects)', 'npm i -g pnpm')
+
+  console.log('Install')
+  const skill = path.join(home, '.claude/skills/figma-make-cli/SKILL.md')
+  fs.existsSync(skill) ? ok('skill ~/.claude/skills/figma-make-cli') : bad('skill not installed', 'run ./install.sh in the repo')
+  fs.existsSync(path.join(home, '.claude/commands/mupdate.md')) ? ok('/mupdate command') : bad('/mupdate command missing', 'run ./install.sh in the repo')
+  ;(process.env.PATH || '').split(':').includes(path.join(home, '.local/bin')) ? ok('~/.local/bin on PATH') : warn('~/.local/bin is not on PATH', 'add it to your shell profile')
+  if (process.platform === 'darwin') {
+    fs.existsSync(path.join(home, 'Library/LaunchAgents/com.figma-make.bridge.plist')) ? ok('bridge login service installed') : warn('bridge login service not installed', 'run ./install.sh --service, or keep `figma-make bridge` running yourself')
+  }
+
+  console.log('Config')
+  const confPath = path.join(home, '.config/figma-make/bridge.json')
+  let conf = null; try { conf = JSON.parse(fs.readFileSync(confPath, 'utf8')) } catch {}
+  const files = conf?.files || {}
+  if (!conf) bad(`${confPath} missing or invalid`, 'run ./install.sh, then figma-make link <make-file-key> <dir>')
+  else if (!Object.keys(files).length) bad('no Make file linked', 'figma-make link <make-file-key> <local-dir>  (key = id in figma.com/make/<key>/…)')
+  for (const [key, d] of Object.entries(files)) {
+    const dir = path.resolve(d.replace(/^~(?=\/|$)/, home))
+    if (!fs.existsSync(dir)) bad(`${key} → ${dir} (folder missing)`, `mkdir -p ${dir} && cd ${dir} && git init`)
+    else if (!fs.existsSync(path.join(dir, '.git'))) warn(`${key} → ${dir} (not a git repo; pull/push safety needs one)`, `cd ${dir} && git init`)
+    else ok(`${key} → ${dir}`)
+  }
+  if (conf) console.log(`  · skipPermissions: ${conf.skipPermissions === true ? 'on (Claude runs every command without asking)' : 'off (Bash limited to figma-make/pnpm/git/ls/cat)'}`)
+
+  console.log('Bridge')
+  const st = await get('/')
+  if (!st?.ok) { bad(`bridge not reachable at ${BRIDGE}`, 'start it: figma-make bridge   (or ./install.sh --service on macOS)'); return finish() }
+  ok('bridge running')
+  st.ext ? ok('extension connected') : bad('extension not connected', 'load skill/figma-make-cli/extension unpacked in chrome://extensions (Developer mode), then reload the Make tab')
+  if (!skipClaude) {
+    const t = await get('/selftest')
+    t?.ok ? ok(`claude answers from the bridge${t.model ? ` (${t.model})` : ''}`) : bad(`claude fails when run by the bridge: ${t?.error || 'no answer'}`, 'run `claude` once in a terminal to log in; for the service re-run ./install.sh --service (sets USER/LOGNAME/PATH)')
+  }
+  if (!st.ext) return finish()
+
+  console.log('Make (through the extension)')
+  const tabs = (await rpc('list'))?.result || []
+  if (!tabs.length) { bad('no Make tab open', 'open https://www.figma.com/make/<key>/… in the browser with the extension'); return finish() }
+  for (const t of tabs) {
+    const key = (t.url.match(/\/make\/([^/?#]+)/) || [])[1] || '?'
+    const linked = key in files
+    ;(linked ? ok : warn)(`tab ${key}${linked ? '' : ' (not linked: figma-make link ' + key + ' <dir>)'}${/fullscreen=1/.test(t.url) ? ' — fullscreen preview, open it without fullscreen=1' : ''}`)
+    const fsr = await rpc('evaluate', { tabId: t.tabId, frame: 'top', expression: `(() => { for (const el of document.querySelectorAll('div')) for (const k of Object.keys(el)) if (k.startsWith('__reactFiber')) for (let f = el[k], j = 0; j < 60 && f; j++, f = f.return) { const v = f.memoizedProps && f.memoizedProps.value; if (v && typeof v.writeFile === 'function' && typeof v.deprecatedGetFilePaths === 'function') return v.deprecatedGetFilePaths().length } return -1 })()` })
+    fsr?.ok && fsr.result > 0 ? ok(`Make file system reachable (${fsr.result} files)`) : bad(`Make file system not found${fsr?.error ? ': ' + fsr.error : ''}`, 'open the Make file normally (workspace visible, not fullscreen) and wait for it to load')
+    const pv = await rpc('evaluate', { tabId: t.tabId, frame: 'preview', expression: `document.querySelectorAll('[data-fge-id]').length` })
+    pv?.ok && pv.result > 0 ? ok(`preview reachable (${pv.result} elements)`) : warn(`preview not reachable${pv?.error ? ': ' + pv.error : ''}`, 'show the Browser (preview) tab in Make; baseline/pending/selection context need it')
+  }
+  return finish()
+
+  function finish() {
+    console.log(fails ? `\n${fails} problem(s) — fix the ✗ items above and re-run figma-make doctor.` : '\nAll good.')
+    if (fails) process.exitCode = 1
+  }
+}
 
 async function status() {
   try {
@@ -124,6 +198,7 @@ try {
   else if (cmd === 'pending') await pending(args[0])
   else if (cmd === 'kit-add') await kitAdd(args[0], args[1])
   else if (cmd === 'bridge') await import('./bridge.mjs') // keeps running in the foreground
+  else if (cmd === 'doctor') await doctor({ skipClaude: args.includes('--skip-claude') })
   else if (cmd === 'link') {
     const [key, dir] = args
     if (!key || !dir) throw new Error('usage: figma-make link <file-key> <dir>')

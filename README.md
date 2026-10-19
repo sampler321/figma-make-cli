@@ -17,6 +17,10 @@ Make AI credits are spent.
 - **Claude Code skill + `/mupdate` command**, so Claude knows how Make works and how to keep apps
   GUI-editable.
 
+**Setting this up with an AI agent?** Point it at [docs/agent-install.md](docs/agent-install.md):
+*"Install and verify https://github.com/sampler321/figma-make-cli following docs/agent-install.md."*
+You'll only need to click **Load unpacked** once and paste your Make file's URL.
+
 > Unofficial. This drives Figma Make's web app from the outside and relies on internals that can
 > change at any time. Use it on your own files.
 
@@ -57,6 +61,7 @@ cd figma-make-cli
 3. Start the bridge if you didn't install the service: `figma-make bridge`.
 4. Open the Make file in Chrome. The **Claude Code (local)** panel covers Make's chat. A green dot
    means it's connected.
+5. Check everything: `figma-make doctor`.
 
 Full instructions: [docs/setup.md](docs/setup.md). Day-to-day use: [docs/usage.md](docs/usage.md).
 
@@ -64,6 +69,7 @@ Full instructions: [docs/setup.md](docs/setup.md). Day-to-day use: [docs/usage.m
 
 | | |
 |---|---|
+| [Agent install](docs/agent-install.md) | Step-by-step install + verification for an AI agent |
 | [Setup](docs/setup.md) | Install, extension, bridge service, config, desktop mode |
 | [Usage](docs/usage.md) | Chat panel, selection context, Apply interception, `/mupdate`, CLI reference |
 | [How it works](docs/how-it-works.md) | Architecture, Make internals it relies on, protocol |

@@ -104,6 +104,7 @@ Without arguments it uses the single entry in `~/.config/figma-make/bridge.json`
 | Command | What it does |
 |---|---|
 | `figma-make status` | Is the transport up? Lists open Make files and their keys. |
+| `figma-make doctor [--skip-claude]` | Check every part of the browser-mode setup and print the fix for each problem. Exits 1 if anything fails. |
 | `figma-make link <key> <dir>` | Map a Make file to a local folder (bridge config). |
 | `figma-make pull <file> <dir> [--force]` | Make → folder. Reads only changed files (sha256) through Make's file system and commits "Sync from Make". Refuses if the folder has uncommitted changes. |
 | `figma-make push <file> <dir> [--delete] [--force]` | Folder → Make. Writes only changed files through Make's file system, which persists and commits them; there's no save step. Refuses if Make changed since your last sync, so pull first. `--delete` removes files that no longer exist locally. |

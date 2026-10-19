@@ -58,6 +58,8 @@ every 2 s, so the start order doesn't matter.
 The service sets `PATH` (node and claude), `HOME`, `USER` and `LOGNAME`. Without `USER`/`LOGNAME`,
 `claude` can't read its login from the macOS keychain and fails with "OAuth session expired".
 
+Check the result any time with `figma-make doctor`.
+
 ## 4. Link a Make file to a local folder
 
 The bridge needs to know which local folder holds each Make file's code. The key is the id in the
