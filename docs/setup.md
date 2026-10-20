@@ -66,6 +66,11 @@ Check the result any time with `figma-make doctor`.
 
 ## 4. Link a Make file to a local folder
 
+**Automatic:** just open a Make file and send a message in the Claude panel. For a file it doesn't
+know yet, the bridge creates `~/make-apps/<file-name>`, runs `git init`, links it, pulls the code and
+runs `pnpm install`, then handles your message. Set `"autoLink": false` in `bridge.json` to turn this
+off. For a specific folder, link manually:
+
 The bridge needs to know which local folder holds each Make file's code. The key is the id in the
 URL: `https://www.figma.com/make/<KEY>/<name>`.
 

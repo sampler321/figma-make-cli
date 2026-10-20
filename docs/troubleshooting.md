@@ -14,7 +14,8 @@ card, then Load unpacked once from `skill/figma-make-cli/extension`. Since 0.3.0
 (`pdihomdlefdamkalilgnakikkgjlbgoi`), so this can't happen again.
 
 **Claude replies "No local directory configured for Make file …".**
-Run `figma-make link <KEY> <dir>`.
+Auto-linking is off (`"autoLink": false`) or failed. Run `figma-make link <KEY> <dir>`, then
+`FIGMA_MAKE_VIA=ext figma-make pull <KEY> <dir>`.
 
 **The service fails with "OAuth session expired" in the log.**
 launchd's environment is missing `USER`/`LOGNAME` (needed for the keychain), or `PATH` finds a

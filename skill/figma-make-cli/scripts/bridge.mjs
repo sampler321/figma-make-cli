@@ -93,6 +93,7 @@ const rpc = (method, params = {}) => new Promise(res => {
 })
 
 // ---- claude runner ----
+const linking = new Set() // file keys being auto-linked
 const runs = new Map() // fileKey → { child, tabId }
 const send = m => ext?.send(m)
 
@@ -112,12 +113,46 @@ After code changes: run \`pnpm exec tsc --noEmit -p .\`, fix errors, \`git commi
 Never spend Make AI credits (never click Apply or use Make's AI). Don't use \`figma-make exec\`, \`save\`, \`preview\` or \`reload\` unless the user asks: they use Make's terminal or tabs and change what the user sees; push/pull/baseline/pending never do. Be brief: the overlay is narrow and renders Markdown.`
 }
 
-function run(kind, { tabId, fileKey }, prompt, onDone) {
+// First message from a Make file nobody linked yet: create ~/make-apps/<name>, git init, link it,
+// pull the code through the extension and install deps, then carry on with the message.
+// Set "autoLink": false in bridge.json to require `figma-make link` instead.
+async function autoLink(fileKey, tabId) {
+  if (readJson(CONF, {}).autoLink === false) return null
+  const tabs = (await rpc('list'))?.result || []
+  const title = (tabs.find(t => t.tabId === tabId)?.title || fileKey).replace(/\s*[–-]\s*Figma Make\s*$/, '')
+  const slug = title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || fileKey
+  const base = path.join(os.homedir(), 'make-apps')
+  let dir = path.join(base, slug)
+  if (fs.existsSync(dir) && fs.readdirSync(dir).length) dir = `${dir}-${fileKey.slice(0, 6)}`
+  const say = text => send({ type: 'chat-tool', tabId, text })
+  say(`setting up ${dir} for this Make file…`)
+  fs.mkdirSync(dir, { recursive: true })
+  const cli = path.join(path.dirname(new URL(import.meta.url).pathname), 'figma-make.mjs')
+  const sh = (cmd, args) => new Promise(res => { const c = spawn(cmd, args, { cwd: dir, env: { ...process.env, FIGMA_MAKE_VIA: 'ext' } }); let o = ''; c.stdout.on('data', d => o += d); c.stderr.on('data', d => o += d); c.on('close', code => res({ code, o })); c.on('error', e => res({ code: 1, o: e.message })) })
+  await sh('git', ['init', '-q'])
+  fs.writeFileSync(path.join(dir, '.gitignore'), '.env\n.env.*\nnode_modules/\ndist/\n')
+  const c = readJson(CONF, { files: {} }); c.files = { ...c.files, [fileKey]: dir }; fs.writeFileSync(CONF, JSON.stringify(c, null, 2) + '\n')
+  const pulled = await sh(process.execPath, [cli, 'pull', fileKey, '.'])
+  if (pulled.code !== 0) { say('pull failed: ' + pulled.o.trim().split('\n').pop()); return dir }
+  say('pulled the code; installing dependencies…')
+  await sh('pnpm', ['install', '--silent'])
+  log(`autolinked ${fileKey} → ${dir}`)
+  return dir
+}
+
+function run(kind, msg, prompt, onDone) {
+  const { tabId, fileKey } = msg
   const dir = dirFor(fileKey)
   if (!dir) {
-    send({ type: 'chat-delta', tabId, text: `No local directory configured for Make file ${fileKey}. Add it to ${CONF}: { "files": { "${fileKey}": "/abs/local/dir" } }` })
-    send({ type: 'chat-done', tabId, ok: false, error: 'unknown file key' })
-    return log(`${kind} ${fileKey}: unknown key`)
+    if (linking.has(fileKey)) return send({ type: 'chat-done', tabId, ok: false, error: 'still setting up this file, try again in a moment' })
+    linking.add(fileKey)
+    return autoLink(fileKey, tabId).then(d => {
+      linking.delete(fileKey)
+      if (d) return run(kind, msg, prompt, onDone)
+      send({ type: 'chat-delta', tabId, text: `No local directory configured for Make file ${fileKey}. Run: figma-make link ${fileKey} <dir>` })
+      send({ type: 'chat-done', tabId, ok: false, error: 'unknown file key' })
+      log(`${kind} ${fileKey}: unknown key`)
+    })
   }
   if (runs.has(fileKey)) {
     send({ type: 'chat-delta', tabId, text: 'Claude is still working on this file — wait for it to finish or press Stop.' })
