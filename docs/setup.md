@@ -96,6 +96,11 @@ the headless run can't show, so Claude reports it's blocked. To let it run every
 { "files": { … }, "skipPermissions": true }
 ```
 
+Browser-driving MCP servers (Playwright, Claude in Chrome, chrome-mcp-server, computer use) are
+always switched off for the panel's Claude, so it never opens windows over your Make tab; you check
+Make's preview yourself. To change that list, set `"disallowedTools": [...]` in `bridge.json`
+(`[]` allows everything).
+
 Claude can then run any command on your machine from the Make chat. Only enable it on a machine and
 for projects you trust. The setting is read on every message, so no restart is needed.
 

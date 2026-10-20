@@ -110,7 +110,7 @@ function context(key, dir) {
   return `You are editing the Figma Make file ${key}, mirrored in this directory (${dir}). The user talks to you from a chat overlay inside Make in Chrome; the figma-make CLI reaches Make through the browser extension (FIGMA_MAKE_VIA=ext is set).
 Keep every block GUI-editable in Make's Edit mode (see the "Lessons" in skill figma-make-cli, ${SKILL_MD}): no library-rendered wrappers around editable text, descriptive component names, Tailwind classes not inline styles.
 After code changes: run \`pnpm exec tsc --noEmit -p .\`, fix errors, \`git commit -am "<msg>"\`, then \`figma-make push ${key} .\`.
-Never spend Make AI credits (never click Apply or use Make's AI). Don't use \`figma-make exec\`, \`save\`, \`preview\` or \`reload\` unless the user asks: they use Make's terminal or tabs and change what the user sees; push/pull/baseline/pending never do. Be brief: the overlay is narrow and renders Markdown.`
+Never spend Make AI credits (never click Apply or use Make's AI). Don't use \`figma-make exec\`, \`save\`, \`preview\` or \`reload\` unless the user asks: they use Make's terminal or tabs and change what the user sees; push/pull/baseline/pending never do. Don't verify visually: no browsers, Playwright, screenshots or local dev servers. The user checks Make's preview themselves. Be brief: the overlay is narrow and renders Markdown.`
 }
 
 // First message from a Make file nobody linked yet: create ~/make-apps/<name>, git init, link it,
@@ -140,6 +140,8 @@ async function autoLink(fileKey, tabId) {
   return dir
 }
 
+const BROWSER_TOOLS = ['mcp__playwright', 'mcp__claude-in-chrome', 'mcp__chrome-mcp-server', 'mcp__computer-use']
+
 function run(kind, msg, prompt, onDone) {
   const { tabId, fileKey } = msg
   const dir = dirFor(fileKey)
@@ -166,6 +168,8 @@ function run(kind, msg, prompt, onDone) {
   const args = ['-p', '--output-format', 'stream-json', '--include-partial-messages', '--verbose',
     ...(yolo ? ['--dangerously-skip-permissions'] : ['--permission-mode', 'acceptEdits',
       '--allowedTools', 'Bash(figma-make:*)', 'Bash(pnpm:*)', 'Bash(git:*)', 'Bash(ls:*)', 'Bash(cat:*)', 'Read', 'Edit', 'Write', 'Glob', 'Grep']),
+    // Browser-driving MCP servers open windows on top of the user's Make tab; the user checks the preview.
+    '--disallowedTools', ...(readJson(CONF, {}).disallowedTools || BROWSER_TOOLS),
     '--append-system-prompt', context(fileKey, dir)]
   if (sessions[fileKey]) args.push('--resume', sessions[fileKey])
   log(`${kind} ${fileKey} → claude in ${dir}${sessions[fileKey] ? ' (resume ' + sessions[fileKey].slice(0, 8) + ')' : ''}`)
