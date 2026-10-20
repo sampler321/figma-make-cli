@@ -39,20 +39,22 @@ function connect() {
     try { msg = JSON.parse(ev.data); } catch { return; }
     handleDaemonMessage(msg);
   };
-  sock.onclose = () => {
+  sock.onclose = (ev) => {
     if (ws === sock) {
       ws = null;
       wsOpen = false;
       broadcastStatus();
-      scheduleReconnect();
+      // 4001 = the bridge accepted another connection instead (usually a second copy of this
+      // extension); back off rather than fight over the socket every 2 s.
+      scheduleReconnect(ev.code === 4001 ? 60000 : 2000);
     }
   };
   sock.onerror = () => { /* onclose follows */ };
 }
 
-function scheduleReconnect() {
+function scheduleReconnect(ms = 2000) {
   if (reconnectTimer) return;
-  reconnectTimer = setTimeout(() => { reconnectTimer = null; connect(); }, 2000);
+  reconnectTimer = setTimeout(() => { reconnectTimer = null; connect(); }, ms);
 }
 
 function send(msg) {

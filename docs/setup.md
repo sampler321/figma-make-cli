@@ -34,6 +34,10 @@ on your `PATH`. Uninstall with `./install.sh --uninstall` (your config is kept).
 3. Click **Load unpacked** and select `skill/figma-make-cli/extension` in this repo (the
    `~/.claude/skills/figma-make-cli/extension` link works too).
 
+The extension has a fixed ID, `pdihomdlefdamkalilgnakikkgjlbgoi` (pinned with `key` in its manifest), so
+loading it again from another path replaces it instead of adding a second copy. Two copies fight over
+the bridge connection; `figma-make doctor` flags that.
+
 The extension asks for the `debugger` permission. While it runs a command against a Make tab, the
 browser shows a "started debugging this browser" bar. That's expected. It detaches 15 s after the last
 command so it doesn't interfere with Make.

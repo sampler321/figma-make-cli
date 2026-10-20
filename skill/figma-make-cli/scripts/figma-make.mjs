@@ -114,6 +114,7 @@ async function doctor({ skipClaude = false } = {}) {
   const st = await get('/')
   if (!st?.ok) { bad(`bridge not reachable at ${BRIDGE}`, 'start it: figma-make bridge   (or ./install.sh --service on macOS)'); return finish() }
   ok('bridge running')
+  if (st.duplicateExtension) bad('two copies of the extension are installed (they keep replacing each other)', 'chrome://extensions: remove every "Figma Make Bridge" card, then Load unpacked once from skill/figma-make-cli/extension')
   st.ext ? ok('extension connected') : bad('extension not connected', 'load skill/figma-make-cli/extension unpacked in chrome://extensions (Developer mode), then reload the Make tab')
   if (!skipClaude) {
     const t = await get('/selftest')

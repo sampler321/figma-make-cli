@@ -8,6 +8,11 @@ The bridge isn't running or the extension can't reach it. Run `curl -s 127.0.0.1
 answers, start `figma-make bridge` (or check `~/Library/Logs/figma-make-bridge.log` for the service).
 If `ext` is `false`, reload the extension.
 
+**Two "Figma Make Bridge" cards in chrome://extensions / the dot keeps flickering / doctor says "two copies".**
+Older versions got a different ID per folder they were loaded from. Remove every Figma Make Bridge
+card, then Load unpacked once from `skill/figma-make-cli/extension`. Since 0.3.0 the ID is fixed
+(`pdihomdlefdamkalilgnakikkgjlbgoi`), so this can't happen again.
+
 **Claude replies "No local directory configured for Make file …".**
 Run `figma-make link <KEY> <dir>`.
 

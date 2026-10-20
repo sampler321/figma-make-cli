@@ -25,6 +25,8 @@ const dirFor = key => { const d = readJson(CONF, { files: {} }).files?.[key]; re
 
 // ---- minimal WebSocket server (RFC 6455: text frames, client masking, ping/pong, close) ----
 let ext = null // the one extension socket (newest wins)
+const replacedAt = [] // times a connected extension was replaced by another connection
+const duplicateExtension = () => replacedAt.filter(t => Date.now() - t < 5 * 60e3).length >= 3
 
 function wsAccept(req, sock) {
   const key = req.headers['sec-websocket-key']
@@ -59,7 +61,13 @@ function wsAccept(req, sock) {
   })
   const gone = () => { if (ext === c) { ext = null; log('extension disconnected'); failPending('extension disconnected') } }
   sock.on('close', gone); sock.on('error', gone)
-  if (ext) { try { frame(ext.sock, 8, Buffer.from([0x03, 0xe8])); ext.sock.end() } catch {} }
+  // Newest wins (a restarted service worker leaves a stale socket). Close code 4001 tells the old one it
+  // was replaced so it backs off; repeated replacements mean two copies of the extension are installed.
+  if (ext) {
+    try { frame(ext.sock, 8, Buffer.concat([Buffer.from([0x0f, 0xa1]), Buffer.from('replaced')])); ext.sock.end() } catch {}
+    replacedAt.push(Date.now())
+    if (replacedAt.length > 20) replacedAt.shift()
+  }
   ext = c
   log('extension connected')
 }
@@ -226,7 +234,7 @@ function onExt(c, m) {
 // ---- HTTP ----
 const server = http.createServer((req, res) => {
   const reply = (status, obj) => { res.writeHead(status, { 'content-type': 'application/json' }); res.end(JSON.stringify(obj)) }
-  if (req.method === 'GET' && req.url === '/') return reply(200, { ok: true, ext: !!ext, running: [...runs.keys()] })
+  if (req.method === 'GET' && req.url === '/') return reply(200, { ok: true, ext: !!ext, duplicateExtension: duplicateExtension(), running: [...runs.keys()] })
   if (req.method === 'GET' && req.url === '/selftest') {
     // Run claude exactly as chat runs do (same env/PATH), to catch login/keychain problems of the service.
     const child = spawn('claude', ['-p', 'Reply with exactly: ok', '--output-format', 'json'], { cwd: os.homedir(), env: process.env, stdio: ['ignore', 'pipe', 'pipe'] })

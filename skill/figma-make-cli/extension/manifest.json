@@ -1,8 +1,9 @@
 {
   "manifest_version": 3,
   "name": "Figma Make Bridge (local Claude Code)",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Routes Figma Make chat and Apply to a local Claude Code daemon (figma-make bridge).",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAsflAzH6bHszIhQ4JnLD2t6KSkbpIo0N+b7ejWZKccBpSz2EL6+EjZqzruYqL7hx0WctUhMgBB77/PxBzaMli9PmT8kfM8t9oJW5VDhRkh3uMSBveQlrQUOh1s8sePZ/dxjoSycpwYTJSt+I4J/WmxJu7ELqSNe7/27ozRTW+w6vfccpfdLd9szGmCneCL0j5gJJqRSBXHNPsi9uDhavV0Ed21hVUw7RX3mD8nse0brUOTv2zg8SsqIS7lbRboVIXKiYkQ6q7J60px2h35WVdFsdstlJvPn/OiFMKjH8ZlL53ID8UcNOMPiW6fBDwfRkMkB2a3MQWOACzTKO6SpacWwIDAQAB",
   "minimum_chrome_version": "125",
   "permissions": [
     "debugger",
