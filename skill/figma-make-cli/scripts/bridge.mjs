@@ -26,7 +26,7 @@ const dirFor = key => { const d = readJson(CONF, { files: {} }).files?.[key]; re
 // ---- minimal WebSocket server (RFC 6455: text frames, client masking, ping/pong, close) ----
 let ext = null // the one extension socket (newest wins)
 const replacedAt = [] // times a connected extension was replaced by another connection
-const duplicateExtension = () => replacedAt.filter(t => Date.now() - t < 5 * 60e3).length >= 3
+const duplicateExtension = () => replacedAt.filter(t => Date.now() - t < 5 * 60e3).length >= 3 && Date.now() - replacedAt.at(-1) < 90e3
 
 function wsAccept(req, sock) {
   const key = req.headers['sec-websocket-key']
